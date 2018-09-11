@@ -80,30 +80,10 @@ def pnt2line(pnt, start, end):
     nearest = add(nearest, start)
     return (dist, (int(nearest[0]), int(nearest[1])), r)
 
-
-def pnt2line2(pnt, start, end):
-    line_vec = vector(start, end)
-    pnt_vec = vector(start, pnt)
-    line_len = length(line_vec)
-    line_unitvec = unit(line_vec)
-    pnt_vec_scaled = scale(pnt_vec, 1.0 / line_len)
-    t = dot(line_unitvec, pnt_vec_scaled)
-    r = 1
-    if t < 0.0:
-        t = 0.0
-        r = -1
-    elif t > 1.0:
-        t = 1.0
-        r = -1
-    nearest = scale(line_vec, t)
-    dist = distance(nearest, pnt_vec)
-    nearest = add(nearest, start)
-    return (dist, (int(nearest[0]), int(nearest[1])), r)
-
 def dist(x1, y1, x2, y2):
     return math.sqrt((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2))
 
-def pripremaTrainData(data):
+def trainData(data):
     for i in range(0, len(data)):
         img = cv2.inRange(data[i].reshape(28, 28), 150, 255)
         closing = cv2.morphologyEx(img, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
@@ -157,18 +137,14 @@ def findLineCoords(frame):
 
     return x1, y1, x2, y2
 
-def getImageNmbr(bbox, img):
-    min_row = bbox[0]
-    height = bbox[2] - min_row
-    min_col = bbox[1]
-    width = bbox[3] - min_col
+def getImageNmbr(bbox, height, width, img):
     rangeX = range(0, height)
     rangeY = range(0, width)
     img_number = np.zeros((28, 28))
     for x in rangeX:
         for y in rangeY:
-            img_number[x, y] = img[min_row + x - 1, min_col + y - 1]
-    return img_number
+            img_number[x, y] = img[bbox[0] + x - 1, bbox[1] + y - 1]
+    return img_number.reshape(1, 784)
 
 
 def addnumber(brojevi, broj, frameN):
@@ -186,12 +162,12 @@ if __name__ == '__main__':
 
     mnist = fetch_mldata('MNIST original')
     train = mnist.data
-    pripremaTrainData(train)
-
+    trainData(train)
     knn = KNeighborsClassifier(n_neighbors=1, algorithm='brute').fit(train, mnist.target)
     videoNum = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     kernel = np.ones((1, 1), np.uint8)
     close_kernel = np.ones((4, 4), np.uint8)
+    lines = []
     for i in videoNum:
         cap = cv2.VideoCapture("video-" + str(i) + ".avi")
         frameN = 0
@@ -230,8 +206,8 @@ if __name__ == '__main__':
                 dist1, pnt1, r1 = pnt2line((xx2, yy2), (x1, y1), (x2, y2))
 
                 if dist1 < 4 and height >= 10 and width >= 10:
-                    img_number = getImageNmbr(region.bbox, gray)
-                    num = int(knn.predict(img_number.reshape(1, 784)))
+                    img_number = getImageNmbr(region.bbox, height, width, gray)
+                    num = int(knn.predict(img_number))
                     if addnumber(brojevi, num, frameN):
                         brojac += 1
                         continue
@@ -247,8 +223,17 @@ if __name__ == '__main__':
 
         for b in brojevi:
             suma += b[0]
+
+        lines.append("video-" + str(i) + ".avi\t" + " " + str(suma))
         print('video: ' + str(i))
         print('suma: ' + str(suma))
         print('--------------')
         cap.release()
         cv2.destroyAllWindows()
+
+    with open('out.txt', 'w') as file:
+        file.write("RA101/2014 Marko Curuvijafile\tsum")
+        for line in lines:
+            file.write(line)
+    file.close()
+
